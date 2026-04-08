@@ -75,6 +75,7 @@ action:
       forecast: "{{ daily[weather_entity].forecast }}"
       today: "{{ forecast[0] }}"
       tomorrow: "{{ forecast[1] if forecast|length > 1 else None }}"
+
       icon: >-
         {% set c = today.condition %}
         {% if c == 'cloudy' %}mdi:clouds
@@ -95,39 +96,39 @@ action:
         {% endif %}
 
       message: >-
-        {% set lines = [] %}
+        {% set out = "" %}
 
         {% if 'condition' in include_details %}
-          {% set _ = lines.append("🌤️ <b>Condition:</b> " ~ today.condition|capitalize) %}
+          {% set out = out + "🌤️ <b>Condition:</b> " + today.condition|capitalize + "\n" %}
         {% endif %}
 
         {% if 'temperature' in include_details %}
-          {% set _ = lines.append("🌡️ <b>Temp:</b> " ~ today.temperature ~ "° / " ~ today.templow ~ "°") %}
+          {% set out = out + "🌡️ <b>Temp:</b> " + today.temperature|string + "° / " + today.templow|string + "°\n" %}
         {% endif %}
 
         {% if 'humidity' in include_details and today.humidity is defined %}
-          {% set _ = lines.append("💧 <b>Humidity:</b> " ~ today.humidity ~ "%") %}
+          {% set out = out + "💧 <b>Humidity:</b> " + today.humidity|string + "%\n" %}
         {% endif %}
 
         {% if 'wind' in include_details %}
-          {% set _ = lines.append("💨 <b>Wind:</b> " ~ today.wind_speed ~ " " ~ state_attr(weather_entity,'wind_speed_unit') ~ " (" ~ today.wind_bearing ~ "°)") %}
+          {% set out = out + "💨 <b>Wind:</b> " + today.wind_speed|string + " " + state_attr(weather_entity,'wind_speed_unit') + " (" + today.wind_bearing|string + "°)\n" %}
         {% endif %}
 
         {% if 'uv' in include_details and today.uv_index is defined %}
-          {% set _ = lines.append("🔆 <b>UV Index:</b> " ~ today.uv_index) %}
+          {% set out = out + "🔆 <b>UV Index:</b> " + today.uv_index|string + "\n" %}
         {% endif %}
 
         {% if 'precipitation' in include_details %}
-          {% set _ = lines.append("🌧️ <b>Rain:</b> " ~ today.precipitation ~ " " ~ state_attr(weather_entity,'precipitation_unit')) %}
+          {% set out = out + "🌧️ <b>Rain:</b> " + today.precipitation|string + " " + state_attr(weather_entity,'precipitation_unit') + "\n" %}
         {% endif %}
 
         {% if include_tomorrow == 'yes' and tomorrow %}
-          {% set _ = lines.append("") %}
-          {% set _ = lines.append("📅 <b>Tomorrow:</b> " ~ tomorrow.condition|capitalize ~
-            ", " ~ tomorrow.temperature ~ "° / " ~ tomorrow.templow ~ "°, " ~ tomorrow.precipitation ~ " " ~ state_attr(weather_entity,'precipitation_unit')) %}
+          {% set out = out + "\n📅 <b>Tomorrow:</b> " + tomorrow.condition|capitalize + ", " +
+            tomorrow.temperature|string + "° / " + tomorrow.templow|string + "°, " +
+            tomorrow.precipitation|string + " " + state_attr(weather_entity,'precipitation_unit') %}
         {% endif %}
 
-        {{ lines | join("\n") }}
+        {{ out }}
 
   - repeat:
       for_each: !input notify_devices
