@@ -1,9 +1,6 @@
 blueprint:
-  name: Advanced Weather Update Notification
-  description: >
-    Sends a customizable weather update to your devices at a scheduled time.
-    Choose which weather details to include: current conditions, highs/lows,
-    wind, humidity, UV index, tomorrow’s forecast, and more.
+  name: Daily Weather Notification
+  description: Sends a customizable weather update to selected devices at a scheduled time.
   domain: automation
 
   input:
@@ -41,20 +38,20 @@ blueprint:
           multiple: true
           mode: list
           options:
-            - label: Current Condition
-              value: condition
-            - label: Current Temperature
-              value: temp_now
-            - label: Today's High/Low
-              value: temp_range
-            - label: Humidity
-              value: humidity
-            - label: Wind Speed & Direction
-              value: wind
-            - label: UV Index (if available)
-              value: uv
-            - label: Chance of Rain (if available)
-              value: rain_chance
+            - label: "Current Condition"
+              value: "condition"
+            - label: "Current Temperature"
+              value: "temp_now"
+            - label: "Today's High/Low"
+              value: "temp_range"
+            - label: "Humidity"
+              value: "humidity"
+            - label: "Wind Speed & Direction"
+              value: "wind"
+            - label: "UV Index"
+              value: "uv"
+            - label: "Chance of Rain"
+              value: "rain_chance"
 
     include_tomorrow:
       name: Include Tomorrow's Forecast?
@@ -78,7 +75,6 @@ trigger:
     at: !input time
 
 action:
-  # Get forecast data
   - service: weather.get_forecasts
     data:
       type: daily
@@ -89,7 +85,9 @@ action:
   - variables:
       today: "{{ forecast_data[weather_entity].forecast[0] }}"
       tomorrow: "{{ forecast_data[weather_entity].forecast[1] }}"
-      weather: "{{ weather_entity }}"
+      u_temp: "{{ state_attr(weather_entity, 'temperature_unit') }}"
+      u_speed: "{{ state_attr(weather_entity, 'wind_speed_unit') }}"
+      u_precip: "{{ state_attr(weather_entity, 'precipitation_unit') }}"
       icon: >-
         {% set cond = today.condition %}
         {% if cond == 'cloudy' %}mdi:clouds
@@ -108,7 +106,6 @@ action:
         {% else %}mdi:sun-thermometer
         {% endif %}
 
-  # Send notification to each device
   - repeat:
       for_each: !input notify_device
       sequence:
@@ -116,38 +113,27 @@ action:
           data:
             title: !input notification_title
             message: >-
-              {% set u_temp = state_attr(weather, 'temperature_unit') %}
-              {% set u_speed = state_attr(weather, 'wind_speed_unit') %}
-              {% set u_precip = state_attr(weather, 'precipitation_unit') %}
-
               {% if 'condition' in include_items %}
               Condition: {{ today.condition | capitalize }}
               {% endif %}
-
               {% if 'temp_now' in include_items %}
-              Current Temp: {{ state_attr(weather, 'temperature') }} {{ u_temp }}
+              Current Temp: {{ state_attr(weather_entity, 'temperature') }} {{ u_temp }}
               {% endif %}
-
               {% if 'temp_range' in include_items %}
               High/Low: {{ today.temperature }} / {{ today.templow }} {{ u_temp }}
               {% endif %}
-
               {% if 'humidity' in include_items %}
-              Humidity: {{ state_attr(weather, 'humidity') }}%
+              Humidity: {{ state_attr(weather_entity, 'humidity') }}%
               {% endif %}
-
               {% if 'wind' in include_items %}
               Wind: {{ today.wind_speed }} {{ u_speed }} ({{ today.wind_bearing }}°)
               {% endif %}
-
-              {% if 'uv' in include_items and state_attr(weather, 'uv_index') is not none %}
-              UV Index: {{ state_attr(weather, 'uv_index') }}
+              {% if 'uv' in include_items and state_attr(weather_entity, 'uv_index') is not none %}
+              UV Index: {{ state_attr(weather_entity, 'uv_index') }}
               {% endif %}
-
               {% if 'rain_chance' in include_items and today.precipitation_probability is not none %}
               Chance of Rain: {{ today.precipitation_probability }}%
               {% endif %}
-
               {% if include_tomorrow == 'yes' %}
               Tomorrow: {{ tomorrow.condition | capitalize }},
               High/Low: {{ tomorrow.temperature }} / {{ tomorrow.templow }} {{ u_temp }},
