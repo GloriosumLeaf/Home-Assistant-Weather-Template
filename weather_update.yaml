@@ -62,11 +62,11 @@ blueprint:
         select:
           mode: dropdown
           options:
-            - label: Yes
-              value: yes
-            - label: No
-              value: no
-      default: yes
+            - label: "Yes"
+              value: "yes"
+            - label: "No"
+              value: "no"
+      default: "yes"
 
 variables:
   weather_entity: !input weather_entity
