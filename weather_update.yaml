@@ -1,12 +1,11 @@
 blueprint:
-  name: Daily Weather Notification (Plain Text with HTML Bold)
-  description: Sends a customizable weather update to selected devices at a scheduled time. Uses HTML <b> tags for bold formatting in the message body.
+  name: Daily Weather Notification (Plain Text with HTML Bold - Fixed)
+  description: Sends a customizable weather update to selected devices at a scheduled time. Uses HTML <b> tags for bold formatting and safely handles missing forecast fields.
   domain: automation
 
   input:
     weather_entity:
       name: Weather Entity
-      description: Select your weather integration entity.
       selector:
         entity:
           filter:
@@ -14,7 +13,6 @@ blueprint:
 
     notify_device:
       name: Devices to Notify
-      description: Devices using the official HA Companion App.
       selector:
         device:
           multiple: true
@@ -22,7 +20,6 @@ blueprint:
 
     time:
       name: Notification Time
-      description: When to send the weather update.
       selector:
         time:
 
@@ -32,7 +29,6 @@ blueprint:
 
     include_items:
       name: Weather Details to Include
-      description: Select which items appear in the notification.
       selector:
         select:
           multiple: true
@@ -89,7 +85,7 @@ action:
       u_speed: "{{ state_attr(weather_entity, 'wind_speed_unit') }}"
       u_precip: "{{ state_attr(weather_entity, 'precipitation_unit') }}"
       icon: >-
-        {% set cond = today.condition %}
+        {% set cond = (forecast_data[weather_entity].forecast[0].get('condition') if forecast_data[weather_entity].forecast and forecast_data[weather_entity].forecast|length > 0 else '') %}
         {% if cond == 'cloudy' %}mdi:clouds
         {% elif cond == 'fog' %}mdi:weather-fog
         {% elif cond == 'hail' %}mdi:weather-hail
@@ -112,16 +108,27 @@ action:
         - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
           data:
             message: >-
-              {# Header fallback #}
-              {% set cond = today.condition | default('') %}
-              {% set cond_cap = cond | capitalize %}
-              {% if cond_cap %}
-              🌤️ <b>{{ cond_cap }}</b>
+              {# Safe getters for today's fields #}
+              {% set t = today %}
+              {% set cond = t.get('condition') if t is mapping else None %}
+              {% set temp_high = t.get('temperature') if t is mapping else None %}
+              {% set temp_low = t.get('templow') if t is mapping else None %}
+              {% set precip_prob = t.get('precipitation_probability') if t is mapping else None %}
+              {% set wind_speed = t.get('wind_speed') if t is mapping else None %}
+              {% set wind_bearing = t.get('wind_bearing') if t is mapping else None %}
+              {% set t_cond = (tomorrow.get('condition') if tomorrow is mapping else None) %}
+              {% set t_high = (tomorrow.get('temperature') if tomorrow is mapping else None) %}
+              {% set t_low = (tomorrow.get('templow') if tomorrow is mapping else None) %}
+              {% set t_rain = (tomorrow.get('precipitation') if tomorrow is mapping else None) %}
+
+              {# Header #}
+              {% if cond %}
+              🌤️ <b>{{ cond | capitalize }}</b>
               {% else %}
               <b>Weather</b>
               {% endif %}
 
-              {# Current Temp #}
+              {# Current temp from entity attribute (keeps original behavior) #}
               {% set temp_now = state_attr(weather_entity, 'temperature') %}
               {% if 'temp_now' in include_items and temp_now is not none %}
               <br><b>Current Temp:</b> {{ temp_now }} {{ u_temp }}
@@ -129,11 +136,11 @@ action:
 
               {# High / Low #}
               {% if 'temp_range' in include_items %}
-                {% if today.temperature is not none %}
-              <br><b>High:</b> {{ today.temperature }} {{ u_temp }}
+                {% if temp_high is not none %}
+              <br><b>High:</b> {{ temp_high }} {{ u_temp }}
                 {% endif %}
-                {% if today.templow is not none %}
-              <br><b>Low:</b> {{ today.templow }} {{ u_temp }}
+                {% if temp_low is not none %}
+              <br><b>Low:</b> {{ temp_low }} {{ u_temp }}
                 {% endif %}
               {% endif %}
 
@@ -145,11 +152,11 @@ action:
 
               {# Wind #}
               {% if 'wind' in include_items %}
-                {% if today.wind_speed is not none %}
-              <br><b>Wind:</b> {{ today.wind_speed }} {{ u_speed }}
+                {% if wind_speed is not none %}
+              <br><b>Wind:</b> {{ wind_speed }} {{ u_speed }}
                 {% endif %}
-                {% if today.wind_bearing is not none %}
-              <br><b>Direction:</b> {{ today.wind_bearing }}°
+                {% if wind_bearing is not none %}
+              <br><b>Direction:</b> {{ wind_bearing }}°
                 {% endif %}
               {% endif %}
 
@@ -160,23 +167,17 @@ action:
               {% endif %}
 
               {# Chance of Rain #}
-              {% if 'rain_chance' in include_items and today.precipitation_probability is not none %}
-              <br><b>Chance of Rain:</b> {{ (today.precipitation_probability | round(0)) }}%
+              {% if 'rain_chance' in include_items and precip_prob is not none %}
+              <br><b>Chance of Rain:</b> {{ (precip_prob | round(0)) }}%
               {% endif %}
 
               {# Tomorrow #}
-              {% if include_tomorrow == 'yes' %}
-                {% set t_cond = tomorrow.condition | default('') %}
-                {% set t_high = tomorrow.temperature %}
-                {% set t_low = tomorrow.templow %}
-                {% set t_rain = tomorrow.precipitation %}
-                {% if t_cond or t_high is not none or t_low is not none or t_rain is not none %}
+              {% if include_tomorrow == 'yes' and (t_cond or t_high is not none or t_low is not none or t_rain is not none) %}
               <br><br>📅 <b>Tomorrow:</b>
                 {% if t_cond %}<br>• Condition: <b>{{ t_cond | capitalize }}</b>{% endif %}
                 {% if t_high is not none %}<br>• High: <b>{{ t_high }} {{ u_temp }}</b>{% endif %}
                 {% if t_low is not none %}<br>• Low: <b>{{ t_low }} {{ u_temp }}</b>{% endif %}
                 {% if t_rain is not none %}<br>• Rain: <b>{{ t_rain }} {{ u_precip }}</b>{% endif %}
-                {% endif %}
               {% endif %}
             data:
               notification_icon: "{{ icon }}"
