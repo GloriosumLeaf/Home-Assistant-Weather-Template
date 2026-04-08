@@ -1,8 +1,8 @@
 blueprint:
   name: Daily Weather Notification (Pretty)
   description: >
-    Sends a beautifully formatted daily weather notification with optional details
-    and tomorrow's forecast. Supports multiple devices and rich emoji formatting.
+    Sends a clean, well‑formatted daily weather notification with optional details
+    and tomorrow's forecast. Supports multiple devices and rich text formatting.
   domain: automation
 
   input:
@@ -24,6 +24,10 @@ blueprint:
       name: Notification Time
       selector:
         time:
+
+    notification_title:
+      name: Notification Title (Base)
+      default: "Daily Weather Update"
 
     include_details:
       name: Weather Details to Include
@@ -53,6 +57,7 @@ variables:
   weather_entity: !input weather_entity
   include_details: !input include_details
   include_tomorrow: !input include_tomorrow
+  notification_title: !input notification_title
 
 trigger:
   - platform: time
@@ -71,6 +76,16 @@ action:
       today: "{{ forecast[0] }}"
       tomorrow: "{{ forecast[1] if forecast|length > 1 else None }}"
 
+      # Current condition + temperature for title
+      current_temp: "{{ state_attr(weather_entity, 'temperature') }}"
+      current_condition: >-
+        {{ states(weather_entity)
+            | replace('partlycloudy','Partly Cloudy')
+            | replace('mostlycloudy','Mostly Cloudy')
+            | replace('clear-night','Clear Night')
+            | capitalize }}
+
+      # Icon for notification
       icon: >-
         {% set c = today.condition %}
         {% if c == 'cloudy' %}mdi:clouds
@@ -95,14 +110,14 @@ action:
       sequence:
         - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
           data:
-            title: "{{ state_attr(weather_entity, 'temperature') }}°C – {{ states(weather_entity) | capitalize }}"
+            title: "{{ current_temp }}°C – {{ current_condition }}"
             message: >-
               {% set weather = weather_entity %}
 
               {# --- TODAY --- #}
 
               {% if 'condition' in include_details %}
-              🌤️ <b>Condition:</b> {{ today.condition|capitalize }}
+              🌤️ <b>Condition:</b> {{ today.condition | replace('partlycloudy','Partly Cloudy') | capitalize }}
               {% endif %}
 
               {% if 'temperature' in include_details %}
@@ -128,10 +143,9 @@ action:
               {# --- TOMORROW --- #}
 
               {% if include_tomorrow == 'yes' and tomorrow %}
-              📅 <b>Tomorrow:</b> {{ tomorrow.condition|capitalize }},
+              📅 <b>Tomorrow:</b> {{ tomorrow.condition | replace('partlycloudy','Partly Cloudy') | capitalize }},
               {{ tomorrow.temperature }}° / {{ tomorrow.templow }}°,
               {{ tomorrow.precipitation }} {{ state_attr(weather,'precipitation_unit') }}
               {% endif %}
-
             data:
               notification_icon: "{{ icon }}"
