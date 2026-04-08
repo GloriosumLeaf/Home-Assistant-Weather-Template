@@ -1,6 +1,6 @@
 blueprint:
-  name: Daily Weather Notification (Rich Android Markdown)
-  description: Sends a customizable weather update to selected devices at a scheduled time. Android devices receive a rich Markdown card; other devices receive a plain-text fallback.
+  name: Daily Weather Notification
+  description: Sends a customizable weather update to selected devices at a scheduled time.
   domain: automation
 
   input:
@@ -65,26 +65,10 @@ blueprint:
               value: "no"
       default: "yes"
 
-    markdown_style:
-      name: Markdown Style
-      description: Choose how the Android rich notification is formatted.
-      selector:
-        select:
-          mode: dropdown
-          options:
-            - label: "Clean & Minimal"
-              value: "clean"
-            - label: "Table Layout"
-              value: "table"
-            - label: "Compact Summary"
-              value: "compact"
-      default: "clean"
-
 variables:
   weather_entity: !input weather_entity
   include_items: !input include_items
   include_tomorrow: !input include_tomorrow
-  markdown_style: !input markdown_style
 
 trigger:
   - platform: time
@@ -125,176 +109,22 @@ action:
   - repeat:
       for_each: !input notify_device
       sequence:
-        - variables:
-            device_name: "{{ device_attr(repeat.item, 'name') }}"
-            device_model: "{{ device_attr(repeat.item, 'model') | default('') }}"
-            device_manufacturer: "{{ device_attr(repeat.item, 'manufacturer') | default('') }}"
-            device_app_id: "{{ device_attr(repeat.item, 'app_id') | default('') }}"
-            # Heuristic: try to detect Android devices by common attributes
-            is_android: >-
-              {{ (
-                   ('android' in device_model|lower)
-                   or ('android' in device_app_id|lower)
-                   or ('google' in device_manufacturer|lower)
-                   or ('android' in device_name|lower)
-                 ) | string }}
         - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
-          data: >-
-            {% set is_android = (is_android == 'True') %}
-            {% set header_icon = icon %}
-            {% set cond = today.condition %}
-            {% set cond_cap = cond | default('') | capitalize %}
-            {% set temp_now = state_attr(weather_entity, 'temperature') %}
-            {% set humidity = state_attr(weather_entity, 'humidity') %}
-            {% set uv = state_attr(weather_entity, 'uv_index') %}
-            {% set precip_prob = today.precipitation_probability %}
-            {% set wind_speed = today.wind_speed %}
-            {% set wind_bearing = today.wind_bearing %}
-            {% set t_cond = tomorrow.condition %}
-            {% set t_high = tomorrow.temperature %}
-            {% set t_low = tomorrow.templow %}
-            {% set t_rain = tomorrow.precipitation %}
-
-            {% if is_android %}
-            # Send rich Markdown to Android devices
-            message: "{{ notification_title }}"
-            data:
-              notification_icon: "{{ header_icon }}"
-              markdown: >-
-                {% if markdown_style == 'clean' %}
-                ## {{ cond_cap if cond_cap else 'Weather' }} {{ '🌤️' if cond_cap else '' }}
-
-                {% if 'temp_now' in include_items and temp_now is not none %}
-                **Current Temp:** **{{ temp_now }} {{ u_temp }}**  
-                {% endif %}
-
-                {% if 'temp_range' in include_items %}
-                  {% if today.temperature is not none %}
-                **High:** **{{ today.temperature }} {{ u_temp }}**  
-                  {% endif %}
-                  {% if today.templow is not none %}
-                **Low:** **{{ today.templow }} {{ u_temp }}**  
-                  {% endif %}
-                {% endif %}
-
-                {% if 'humidity' in include_items and humidity is not none %}
-                **Humidity:** **{{ humidity }}%**  
-                {% endif %}
-
-                {% if 'wind' in include_items %}
-                  {% if wind_speed is not none %}
-                **Wind:** **{{ wind_speed }} {{ u_speed }}**  
-                  {% endif %}
-                  {% if wind_bearing is not none %}
-                **Direction:** **{{ wind_bearing }}°**  
-                  {% endif %}
-                {% endif %}
-
-                {% if 'uv' in include_items and uv is not none %}
-                **UV Index:** **{{ uv }}**  
-                {% endif %}
-
-                {% if 'rain_chance' in include_items and precip_prob is not none %}
-                **Chance of Rain:** **{{ precip_prob }}%**  
-                {% endif %}
-
-                {% if include_tomorrow == 'yes' and (t_cond or t_high or t_low or t_rain) %}
-                ### 📅 Tomorrow
-                {% if t_cond %}• Condition: **{{ t_cond | capitalize }}**  
-                {% endif %}
-                {% if t_high %}• High: **{{ t_high }} {{ u_temp }}**  
-                {% endif %}
-                {% if t_low %}• Low: **{{ t_low }} {{ u_temp }}**  
-                {% endif %}
-                {% if t_rain %}• Rain: **{{ t_rain }} {{ u_precip }}**  
-                {% endif %}
-                {% endif %}
-
-                {% elif markdown_style == 'table' %}
-                ## {{ cond_cap if cond_cap else 'Weather' }} {{ '🌤️' if cond_cap else '' }}
-
-                | Metric | Value |
-                |-------:|:------|
-                {% if 'temp_now' in include_items and temp_now is not none %}| Current Temp | **{{ temp_now }} {{ u_temp }}** |
-                {% endif %}
-                {% if 'temp_range' in include_items and today.temperature is not none %}| High | **{{ today.temperature }} {{ u_temp }}** |
-                {% endif %}
-                {% if 'temp_range' in include_items and today.templow is not none %}| Low | **{{ today.templow }} {{ u_temp }}** |
-                {% endif %}
-                {% if 'humidity' in include_items and humidity is not none %}| Humidity | **{{ humidity }}%** |
-                {% endif %}
-                {% if 'wind' in include_items and wind_speed is not none %}| Wind | **{{ wind_speed }} {{ u_speed }}** |
-                {% endif %}
-                {% if 'wind' in include_items and wind_bearing is not none %}| Direction | **{{ wind_bearing }}°** |
-                {% endif %}
-                {% if 'uv' in include_items and uv is not none %}| UV Index | **{{ uv }}** |
-                {% endif %}
-                {% if 'rain_chance' in include_items and precip_prob is not none %}| Chance of Rain | **{{ precip_prob }}%** |
-                {% endif %}
-
-                {% if include_tomorrow == 'yes' and (t_cond or t_high or t_low or t_rain) %}
-                ### 📅 Tomorrow
-
-                | Metric | Value |
-                |-------:|:------|
-                {% if t_cond %}| Condition | **{{ t_cond | capitalize }}** |
-                {% endif %}
-                {% if t_high %}| High | **{{ t_high }} {{ u_temp }}** |
-                {% endif %}
-                {% if t_low %}| Low | **{{ t_low }} {{ u_temp }}** |
-                {% endif %}
-                {% if t_rain %}| Rain | **{{ t_rain }} {{ u_precip }}** |
-                {% endif %}
-                {% endif %}
-
-                {% else %}
-                ## {{ cond_cap if cond_cap else 'Weather' }} {{ '🌤️' if cond_cap else '' }}
-
-                {% set summary_parts = [] %}
-                {% if 'temp_range' in include_items and today.temperature is not none and today.templow is not none %}
-                  {% set _ = summary_parts.append(cond_cap ~ ' · ' ~ today.temperature|string ~ '° / ' ~ today.templow|string ~ '°') %}
-                {% elif 'temp_now' in include_items and temp_now is not none %}
-                  {% set _ = summary_parts.append(cond_cap ~ ' · ' ~ temp_now|string ~ '°') %}
-                {% endif %}
-
-                {% if 'rain_chance' in include_items and precip_prob is not none %}
-                  {% set _ = summary_parts.append(precip_prob|string ~ '% rain') %}
-                {% endif %}
-
-                {{ summary_parts | join(' · ') }}
-
-                {% if 'temp_now' in include_items and temp_now is not none %}
-
-                🌡️ **{{ temp_now }} {{ u_temp }}** now  
-                {% endif %}
-                {% if 'humidity' in include_items and humidity is not none %}
-                💧 **{{ humidity }}%** humidity  
-                {% endif %}
-                {% if 'wind' in include_items and wind_speed is not none %}
-                🌬️ **{{ wind_speed }} {{ u_speed }}** wind  
-                {% endif %}
-
-                {% if include_tomorrow == 'yes' and (t_cond or t_high or t_low or t_rain) %}
-                ### 📅 Tomorrow
-                {% set t_summary = [] %}
-                {% if t_cond %}{% set _ = t_summary.append(t_cond | capitalize) %}{% endif %}
-                {% if t_high and t_low %}{% set _ = t_summary.append(t_high|string ~ '° / ' ~ t_low|string ~ '°') %}{% endif %}
-                {% if t_rain %}{% set _ = t_summary.append(t_rain|string ~ '% rain') %}{% endif %}
-                {{ t_summary | join(' · ') }}
-                {% endif %}
-                {% endif %}
-            {% else %}
-            # Plain-text fallback for non-Android devices (iOS)
+          data:
+            title: !input notification_title
             message: >-
+              {# CONDITION #}
               {% if 'condition' in include_items and today.condition is not none %}
                 🌤️ **Condition:** {{ today.condition | capitalize }}
               {% endif %}
 
+              {# CURRENT TEMP #}
               {% set temp_now = state_attr(weather_entity, 'temperature') %}
               {% if 'temp_now' in include_items and temp_now is not none %}
                 🌡️ **Current Temp:** **{{ temp_now }} {{ u_temp }}**
               {% endif %}
 
+              {# HIGH / LOW #}
               {% if 'temp_range' in include_items %}
                 {% if today.temperature is not none %}
                   📈 **High:** **{{ today.temperature }} {{ u_temp }}**
@@ -304,34 +134,56 @@ action:
                 {% endif %}
               {% endif %}
 
+              {# HUMIDITY #}
+              {% set humidity = state_attr(weather_entity, 'humidity') %}
               {% if 'humidity' in include_items and humidity is not none %}
                 💧 **Humidity:** **{{ humidity }}%**
               {% endif %}
 
+              {# WIND #}
               {% if 'wind' in include_items %}
-                {% if wind_speed is not none %}
-                  🌬️ **Wind:** **{{ wind_speed }} {{ u_speed }}**
+                {% if today.wind_speed is not none %}
+                  🌬️ **Wind:** **{{ today.wind_speed }} {{ u_speed }}**
                 {% endif %}
-                {% if wind_bearing is not none %}
-                  ↗️ **Direction:** **{{ wind_bearing }}°**
+                {% if today.wind_bearing is not none %}
+                  ↗️ **Direction:** **{{ today.wind_bearing }}°**
                 {% endif %}
               {% endif %}
 
+              {# UV INDEX #}
+              {% set uv = state_attr(weather_entity, 'uv_index') %}
               {% if 'uv' in include_items and uv is not none %}
                 🔆 **UV Index:** **{{ uv }}**
               {% endif %}
 
-              {% if 'rain_chance' in include_items and precip_prob is not none %}
-                🌧️ **Chance of Rain:** **{{ precip_prob }}%**
+              {# CHANCE OF RAIN #}
+              {% if 'rain_chance' in include_items and today.precipitation_probability is not none %}
+                🌧️ **Chance of Rain:** **{{ today.precipitation_probability }}%**
               {% endif %}
 
-              {% if include_tomorrow == 'yes' and (t_cond or t_high or t_low or t_rain) %}
-                📅 **Tomorrow:**
-                {% if t_cond %}• Condition: **{{ t_cond | capitalize }}**{% endif %}
-                {% if t_high %}• High: **{{ t_high }} {{ u_temp }}**{% endif %}
-                {% if t_low %}• Low: **{{ t_low }} {{ u_temp }}**{% endif %}
-                {% if t_rain %}• Rain: **{{ t_rain }} {{ u_precip }}**{% endif %}
+              {# TOMORROW #}
+              {% if include_tomorrow == 'yes' %}
+                {% set t_cond = tomorrow.condition %}
+                {% set t_high = tomorrow.temperature %}
+                {% set t_low = tomorrow.templow %}
+                {% set t_rain = tomorrow.precipitation %}
+
+                {% if t_cond or t_high or t_low or t_rain %}
+                  📅 **Tomorrow:**
+                {% endif %}
+
+                {% if t_cond %}
+                  • Condition: **{{ t_cond | capitalize }}**
+                {% endif %}
+                {% if t_high %}
+                  • High: **{{ t_high }} {{ u_temp }}**
+                {% endif %}
+                {% if t_low %}
+                  • Low: **{{ t_low }} {{ u_temp }}**
+                {% endif %}
+                {% if t_rain %}
+                  • Rain: **{{ t_rain }} {{ u_precip }}**
+                {% endif %}
               {% endif %}
             data:
               notification_icon: "{{ icon }}"
-            {% endif %}
