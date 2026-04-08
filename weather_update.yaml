@@ -57,7 +57,6 @@ variables:
   weather_entity: !input weather_entity
   include_details: !input include_details
   include_tomorrow: !input include_tomorrow
-  notification_title: !input notification_title
 
 trigger:
   - platform: time
@@ -100,7 +99,7 @@ action:
       sequence:
         - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
           data:
-            title: "{{ notification_title }}"
+            title: "{{ today.temperature }}°C – {{ today.condition|capitalize }}"
             message: >-
               {% set weather = weather_entity %}
 
