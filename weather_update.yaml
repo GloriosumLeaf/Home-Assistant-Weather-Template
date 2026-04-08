@@ -1,0 +1,157 @@
+blueprint:
+  name: Advanced Weather Update Notification
+  description: >
+    Sends a customizable weather update to your devices at a scheduled time.
+    Choose which weather details to include: current conditions, highs/lows,
+    wind, humidity, UV index, tomorrow’s forecast, and more.
+  domain: automation
+
+  input:
+    weather_entity:
+      name: Weather Entity
+      description: Select your weather integration entity.
+      selector:
+        entity:
+          filter:
+            - domain: weather
+
+    notify_device:
+      name: Devices to Notify
+      description: Devices using the official HA Companion App.
+      selector:
+        device:
+          multiple: true
+          integration: mobile_app
+
+    time:
+      name: Notification Time
+      description: When to send the weather update.
+      selector:
+        time:
+
+    notification_title:
+      name: Notification Title
+      default: "Daily Weather Update"
+
+    include_items:
+      name: Weather Details to Include
+      description: Select which items appear in the notification.
+      selector:
+        select:
+          multiple: true
+          mode: list
+          options:
+            - label: Current Condition
+              value: condition
+            - label: Current Temperature
+              value: temp_now
+            - label: Today's High/Low
+              value: temp_range
+            - label: Humidity
+              value: humidity
+            - label: Wind Speed & Direction
+              value: wind
+            - label: UV Index (if available)
+              value: uv
+            - label: Chance of Rain (if available)
+              value: rain_chance
+
+    include_tomorrow:
+      name: Include Tomorrow's Forecast?
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - label: Yes
+              value: yes
+            - label: No
+              value: no
+      default: yes
+
+variables:
+  weather_entity: !input weather_entity
+  include_items: !input include_items
+  include_tomorrow: !input include_tomorrow
+
+trigger:
+  - platform: time
+    at: !input time
+
+action:
+  # Get forecast data
+  - service: weather.get_forecasts
+    data:
+      type: daily
+    target:
+      entity_id: !input weather_entity
+    response_variable: forecast_data
+
+  - variables:
+      today: "{{ forecast_data[weather_entity].forecast[0] }}"
+      tomorrow: "{{ forecast_data[weather_entity].forecast[1] }}"
+      weather: "{{ weather_entity }}"
+      icon: >-
+        {% set cond = today.condition %}
+        {% if cond == 'cloudy' %}mdi:clouds
+        {% elif cond == 'fog' %}mdi:weather-fog
+        {% elif cond == 'hail' %}mdi:weather-hail
+        {% elif cond == 'lightning' %}mdi:weather-lightning
+        {% elif cond == 'lightning-rainy' %}mdi:weather-lightning-rainy
+        {% elif cond == 'partlycloudy' %}mdi:weather-partly-cloudy
+        {% elif cond == 'pouring' %}mdi:weather-pouring
+        {% elif cond == 'rainy' %}mdi:weather-rainy
+        {% elif cond == 'snowy' %}mdi:weather-snowy
+        {% elif cond == 'snowy-rainy' %}mdi:weather-snowy-rainy
+        {% elif cond == 'sunny' %}mdi:weather-sunny
+        {% elif cond == 'windy' %}mdi:weather-windy
+        {% elif cond == 'windy-variant' %}mdi:weather-windy-variant
+        {% else %}mdi:sun-thermometer
+        {% endif %}
+
+  # Send notification to each device
+  - repeat:
+      for_each: !input notify_device
+      sequence:
+        - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
+          data:
+            title: !input notification_title
+            message: >-
+              {% set u_temp = state_attr(weather, 'temperature_unit') %}
+              {% set u_speed = state_attr(weather, 'wind_speed_unit') %}
+              {% set u_precip = state_attr(weather, 'precipitation_unit') %}
+
+              {% if 'condition' in include_items %}
+              Condition: {{ today.condition | capitalize }}
+              {% endif %}
+
+              {% if 'temp_now' in include_items %}
+              Current Temp: {{ state_attr(weather, 'temperature') }} {{ u_temp }}
+              {% endif %}
+
+              {% if 'temp_range' in include_items %}
+              High/Low: {{ today.temperature }} / {{ today.templow }} {{ u_temp }}
+              {% endif %}
+
+              {% if 'humidity' in include_items %}
+              Humidity: {{ state_attr(weather, 'humidity') }}%
+              {% endif %}
+
+              {% if 'wind' in include_items %}
+              Wind: {{ today.wind_speed }} {{ u_speed }} ({{ today.wind_bearing }}°)
+              {% endif %}
+
+              {% if 'uv' in include_items and state_attr(weather, 'uv_index') is not none %}
+              UV Index: {{ state_attr(weather, 'uv_index') }}
+              {% endif %}
+
+              {% if 'rain_chance' in include_items and today.precipitation_probability is not none %}
+              Chance of Rain: {{ today.precipitation_probability }}%
+              {% endif %}
+
+              {% if include_tomorrow == 'yes' %}
+              Tomorrow: {{ tomorrow.condition | capitalize }},
+              High/Low: {{ tomorrow.temperature }} / {{ tomorrow.templow }} {{ u_temp }},
+              Rain: {{ tomorrow.precipitation }} {{ u_precip }}
+              {% endif %}
+            data:
+              notification_icon: "{{ icon }}"
