@@ -35,22 +35,20 @@ blueprint:
         select:
           multiple: true
           options:
-            - condition
-            - temperature
-            - humidity
-            - wind
-            - uv
-            - precipitation
+            - "condition"
+            - "temperature"
+            - "humidity"
+            - "wind"
+            - "uv"
+            - "precipitation"
 
     include_tomorrow:
       name: Include Tomorrow's Forecast?
       selector:
         select:
           options:
-            - label: "yes"
-              value: "yes"
-            - label: "no"
-              value: "no"
+            - "yes"
+            - "no"
       default: "yes"
 
 variables:
