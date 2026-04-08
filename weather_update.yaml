@@ -31,7 +31,6 @@ blueprint:
 
     include_details:
       name: Weather Details to Include
-      description: Select which details to include in the notification.
       selector:
         select:
           multiple: true
@@ -45,14 +44,14 @@ blueprint:
 
     include_tomorrow:
       name: Include Tomorrow's Forecast?
-      default: "yes"
       selector:
         select:
           options:
-            - label: Yes
+            - label: "yes"
               value: "yes"
-            - label: No
+            - label: "no"
               value: "no"
+      default: "yes"
 
 variables:
   weather_entity: !input weather_entity
