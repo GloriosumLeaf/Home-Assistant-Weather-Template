@@ -1,6 +1,8 @@
 blueprint:
-  name: Daily Weather Notification (Plain Text with HTML Bold - Fixed)
-  description: Sends a customizable weather update to selected devices at a scheduled time. Uses HTML <b> tags for bold formatting and safely handles missing forecast fields.
+  name: Daily Weather Notification (Pretty)
+  description: >
+    Sends a beautifully formatted daily weather notification with optional details
+    and tomorrow's forecast. Supports multiple devices and rich emoji formatting.
   domain: automation
 
   input:
@@ -11,7 +13,7 @@ blueprint:
           filter:
             - domain: weather
 
-    notify_device:
+    notify_devices:
       name: Devices to Notify
       selector:
         device:
@@ -27,44 +29,36 @@ blueprint:
       name: Notification Title
       default: "Daily Weather Update"
 
-    include_items:
+    include_details:
       name: Weather Details to Include
+      description: Select which details to include in the notification.
       selector:
         select:
           multiple: true
-          mode: list
           options:
-            - label: "Current Condition"
-              value: "condition"
-            - label: "Current Temperature"
-              value: "temp_now"
-            - label: "Today's High/Low"
-              value: "temp_range"
-            - label: "Humidity"
-              value: "humidity"
-            - label: "Wind Speed & Direction"
-              value: "wind"
-            - label: "UV Index"
-              value: "uv"
-            - label: "Chance of Rain"
-              value: "rain_chance"
+            - condition
+            - temperature
+            - humidity
+            - wind
+            - uv
+            - precipitation
 
     include_tomorrow:
       name: Include Tomorrow's Forecast?
+      default: "yes"
       selector:
         select:
-          mode: dropdown
           options:
-            - label: "Yes"
+            - label: Yes
               value: "yes"
-            - label: "No"
+            - label: No
               value: "no"
-      default: "yes"
 
 variables:
   weather_entity: !input weather_entity
-  include_items: !input include_items
+  include_details: !input include_details
   include_tomorrow: !input include_tomorrow
+  notification_title: !input notification_title
 
 trigger:
   - platform: time
@@ -76,108 +70,72 @@ action:
       type: daily
     target:
       entity_id: !input weather_entity
-    response_variable: forecast_data
+    response_variable: daily
 
   - variables:
-      today: "{{ forecast_data[weather_entity].forecast[0] }}"
-      tomorrow: "{{ forecast_data[weather_entity].forecast[1] }}"
-      u_temp: "{{ state_attr(weather_entity, 'temperature_unit') }}"
-      u_speed: "{{ state_attr(weather_entity, 'wind_speed_unit') }}"
-      u_precip: "{{ state_attr(weather_entity, 'precipitation_unit') }}"
+      forecast: "{{ daily[weather_entity].forecast }}"
+      today: "{{ forecast[0] }}"
+      tomorrow: "{{ forecast[1] if forecast|length > 1 else None }}"
       icon: >-
-        {% set cond = (forecast_data[weather_entity].forecast[0].get('condition') if forecast_data[weather_entity].forecast and forecast_data[weather_entity].forecast|length > 0 else '') %}
-        {% if cond == 'cloudy' %}mdi:clouds
-        {% elif cond == 'fog' %}mdi:weather-fog
-        {% elif cond == 'hail' %}mdi:weather-hail
-        {% elif cond == 'lightning' %}mdi:weather-lightning
-        {% elif cond == 'lightning-rainy' %}mdi:weather-lightning-rainy
-        {% elif cond == 'partlycloudy' %}mdi:weather-partly-cloudy
-        {% elif cond == 'pouring' %}mdi:weather-pouring
-        {% elif cond == 'rainy' %}mdi:weather-rainy
-        {% elif cond == 'snowy' %}mdi:weather-snowy
-        {% elif cond == 'snowy-rainy' %}mdi:weather-snowy-rainy
-        {% elif cond == 'sunny' %}mdi:weather-sunny
-        {% elif cond == 'windy' %}mdi:weather-windy
-        {% elif cond == 'windy-variant' %}mdi:weather-windy-variant
+        {% set c = today.condition %}
+        {% if c == 'cloudy' %}mdi:clouds
+        {% elif c == 'fog' %}mdi:weather-fog
+        {% elif c == 'hail' %}mdi:weather-hail
+        {% elif c == 'lightning' %}mdi:weather-lightning
+        {% elif c == 'lightning-rainy' %}mdi:weather-lightning-rainy
+        {% elif c == 'partlycloudy' %}mdi:weather-partly-cloudy
+        {% elif c == 'pouring' %}mdi:weather-pouring
+        {% elif c == 'rainy' %}mdi:weather-rainy
+        {% elif c == 'snowy' %}mdi:weather-snowy
+        {% elif c == 'snowy-rainy' %}mdi:weather-snowy-rainy
+        {% elif c == 'sunny' %}mdi:weather-sunny
+        {% elif c == 'windy' %}mdi:weather-windy
+        {% elif c == 'windy-variant' %}mdi:weather-windy-variant
+        {% elif c == 'exceptional' %}mdi:cloud-alert
         {% else %}mdi:sun-thermometer
         {% endif %}
 
+      message: >-
+        {% set lines = [] %}
+
+        {% if 'condition' in include_details %}
+          {% set _ = lines.append("🌤️ <b>Condition:</b> " ~ today.condition|capitalize) %}
+        {% endif %}
+
+        {% if 'temperature' in include_details %}
+          {% set _ = lines.append("🌡️ <b>Temp:</b> " ~ today.temperature ~ "° / " ~ today.templow ~ "°") %}
+        {% endif %}
+
+        {% if 'humidity' in include_details and today.humidity is defined %}
+          {% set _ = lines.append("💧 <b>Humidity:</b> " ~ today.humidity ~ "%") %}
+        {% endif %}
+
+        {% if 'wind' in include_details %}
+          {% set _ = lines.append("💨 <b>Wind:</b> " ~ today.wind_speed ~ " " ~ state_attr(weather_entity,'wind_speed_unit') ~ " (" ~ today.wind_bearing ~ "°)") %}
+        {% endif %}
+
+        {% if 'uv' in include_details and today.uv_index is defined %}
+          {% set _ = lines.append("🔆 <b>UV Index:</b> " ~ today.uv_index) %}
+        {% endif %}
+
+        {% if 'precipitation' in include_details %}
+          {% set _ = lines.append("🌧️ <b>Rain:</b> " ~ today.precipitation ~ " " ~ state_attr(weather_entity,'precipitation_unit')) %}
+        {% endif %}
+
+        {% if include_tomorrow == 'yes' and tomorrow %}
+          {% set _ = lines.append("") %}
+          {% set _ = lines.append("📅 <b>Tomorrow:</b> " ~ tomorrow.condition|capitalize ~
+            ", " ~ tomorrow.temperature ~ "° / " ~ tomorrow.templow ~ "°, " ~ tomorrow.precipitation ~ " " ~ state_attr(weather_entity,'precipitation_unit')) %}
+        {% endif %}
+
+        {{ lines | join("\n") }}
+
   - repeat:
-      for_each: !input notify_device
+      for_each: !input notify_devices
       sequence:
         - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
           data:
-            message: >-
-              {# Safe getters for today's fields #}
-              {% set t = today %}
-              {% set cond = t.get('condition') if t is mapping else None %}
-              {% set temp_high = t.get('temperature') if t is mapping else None %}
-              {% set temp_low = t.get('templow') if t is mapping else None %}
-              {% set precip_prob = t.get('precipitation_probability') if t is mapping else None %}
-              {% set wind_speed = t.get('wind_speed') if t is mapping else None %}
-              {% set wind_bearing = t.get('wind_bearing') if t is mapping else None %}
-              {% set t_cond = (tomorrow.get('condition') if tomorrow is mapping else None) %}
-              {% set t_high = (tomorrow.get('temperature') if tomorrow is mapping else None) %}
-              {% set t_low = (tomorrow.get('templow') if tomorrow is mapping else None) %}
-              {% set t_rain = (tomorrow.get('precipitation') if tomorrow is mapping else None) %}
-
-              {# Header #}
-              {% if cond %}
-              🌤️ <b>{{ cond | capitalize }}</b>
-              {% else %}
-              <b>Weather</b>
-              {% endif %}
-
-              {# Current temp from entity attribute (keeps original behavior) #}
-              {% set temp_now = state_attr(weather_entity, 'temperature') %}
-              {% if 'temp_now' in include_items and temp_now is not none %}
-              <br><b>Current Temp:</b> {{ temp_now }} {{ u_temp }}
-              {% endif %}
-
-              {# High / Low #}
-              {% if 'temp_range' in include_items %}
-                {% if temp_high is not none %}
-              <br><b>High:</b> {{ temp_high }} {{ u_temp }}
-                {% endif %}
-                {% if temp_low is not none %}
-              <br><b>Low:</b> {{ temp_low }} {{ u_temp }}
-                {% endif %}
-              {% endif %}
-
-              {# Humidity #}
-              {% set humidity = state_attr(weather_entity, 'humidity') %}
-              {% if 'humidity' in include_items and humidity is not none %}
-              <br><b>Humidity:</b> {{ humidity }}%
-              {% endif %}
-
-              {# Wind #}
-              {% if 'wind' in include_items %}
-                {% if wind_speed is not none %}
-              <br><b>Wind:</b> {{ wind_speed }} {{ u_speed }}
-                {% endif %}
-                {% if wind_bearing is not none %}
-              <br><b>Direction:</b> {{ wind_bearing }}°
-                {% endif %}
-              {% endif %}
-
-              {# UV Index #}
-              {% set uv = state_attr(weather_entity, 'uv_index') %}
-              {% if 'uv' in include_items and uv is not none %}
-              <br><b>UV Index:</b> {{ uv }}
-              {% endif %}
-
-              {# Chance of Rain #}
-              {% if 'rain_chance' in include_items and precip_prob is not none %}
-              <br><b>Chance of Rain:</b> {{ (precip_prob | round(0)) }}%
-              {% endif %}
-
-              {# Tomorrow #}
-              {% if include_tomorrow == 'yes' and (t_cond or t_high is not none or t_low is not none or t_rain is not none) %}
-              <br><br>📅 <b>Tomorrow:</b>
-                {% if t_cond %}<br>• Condition: <b>{{ t_cond | capitalize }}</b>{% endif %}
-                {% if t_high is not none %}<br>• High: <b>{{ t_high }} {{ u_temp }}</b>{% endif %}
-                {% if t_low is not none %}<br>• Low: <b>{{ t_low }} {{ u_temp }}</b>{% endif %}
-                {% if t_rain is not none %}<br>• Rain: <b>{{ t_rain }} {{ u_precip }}</b>{% endif %}
-              {% endif %}
+            title: "{{ notification_title }}"
+            message: "{{ message }}"
             data:
               notification_icon: "{{ icon }}"
