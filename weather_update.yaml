@@ -127,7 +127,7 @@ action:
       sequence:
         - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
           data:
-            title: !input notification_title
+            message: "{{ notification_title }}"
             data:
               notification_icon: "{{ icon }}"
               markdown: >-
