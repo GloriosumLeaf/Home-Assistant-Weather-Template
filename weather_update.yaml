@@ -33,6 +33,7 @@ blueprint:
       name: Weather Details to Include
       selector:
         select:
+          mode: list
           multiple: true
           options:
             - "condition"
@@ -46,6 +47,7 @@ blueprint:
       name: Include Tomorrow's Forecast?
       selector:
         select:
+          mode: dropdown
           options:
             - "yes"
             - "no"
