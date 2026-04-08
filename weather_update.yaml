@@ -25,10 +25,6 @@ blueprint:
       selector:
         time:
 
-    notification_title:
-      name: Notification Title
-      default: "Daily Weather Update"
-
     include_details:
       name: Weather Details to Include
       selector:
@@ -99,7 +95,7 @@ action:
       sequence:
         - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
           data:
-            title: "{{ today.temperature }}°C – {{ today.condition|capitalize }}"
+            title: "{{ state_attr(weather_entity, 'temperature') }}°C – {{ states(weather_entity) | capitalize }}"
             message: >-
               {% set weather = weather_entity %}
 
