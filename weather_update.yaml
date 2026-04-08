@@ -1,12 +1,11 @@
 blueprint:
-  name: Daily Weather Notification (Rich Android Markdown Only)
+  name: Daily Weather Notification (Rich Android Markdown Only - Fixed)
   description: Sends a customizable weather update to selected Android devices at a scheduled time using a rich Markdown card.
   domain: automation
 
   input:
     weather_entity:
       name: Weather Entity
-      description: Select your weather integration entity.
       selector:
         entity:
           filter:
@@ -14,7 +13,6 @@ blueprint:
 
     notify_device:
       name: Devices to Notify
-      description: Devices using the official HA Companion App.
       selector:
         device:
           multiple: true
@@ -22,7 +20,6 @@ blueprint:
 
     time:
       name: Notification Time
-      description: When to send the weather update.
       selector:
         time:
 
@@ -32,7 +29,6 @@ blueprint:
 
     include_items:
       name: Weather Details to Include
-      description: Select which items appear in the notification.
       selector:
         select:
           multiple: true
@@ -67,7 +63,6 @@ blueprint:
 
     markdown_style:
       name: Markdown Style
-      description: Choose how the Android rich notification is formatted.
       selector:
         select:
           mode: dropdown
