@@ -95,47 +95,48 @@ action:
         {% else %}mdi:sun-thermometer
         {% endif %}
 
-      message: >-
-        {% set out = "" %}
-
-        {% if 'condition' in include_details %}
-          {% set out = out + "🌤️ <b>Condition:</b> " + today.condition|capitalize + "\n" %}
-        {% endif %}
-
-        {% if 'temperature' in include_details %}
-          {% set out = out + "🌡️ <b>Temp:</b> " + today.temperature|string + "° / " + today.templow|string + "°\n" %}
-        {% endif %}
-
-        {% if 'humidity' in include_details and today.humidity is defined %}
-          {% set out = out + "💧 <b>Humidity:</b> " + today.humidity|string + "%\n" %}
-        {% endif %}
-
-        {% if 'wind' in include_details %}
-          {% set out = out + "💨 <b>Wind:</b> " + today.wind_speed|string + " " + state_attr(weather_entity,'wind_speed_unit') + " (" + today.wind_bearing|string + "°)\n" %}
-        {% endif %}
-
-        {% if 'uv' in include_details and today.uv_index is defined %}
-          {% set out = out + "🔆 <b>UV Index:</b> " + today.uv_index|string + "\n" %}
-        {% endif %}
-
-        {% if 'precipitation' in include_details %}
-          {% set out = out + "🌧️ <b>Rain:</b> " + today.precipitation|string + " " + state_attr(weather_entity,'precipitation_unit') + "\n" %}
-        {% endif %}
-
-        {% if include_tomorrow == 'yes' and tomorrow %}
-          {% set out = out + "\n📅 <b>Tomorrow:</b> " + tomorrow.condition|capitalize + ", " +
-            tomorrow.temperature|string + "° / " + tomorrow.templow|string + "°, " +
-            tomorrow.precipitation|string + " " + state_attr(weather_entity,'precipitation_unit') %}
-        {% endif %}
-
-        {{ out }}
-
   - repeat:
       for_each: !input notify_devices
       sequence:
         - service: "notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}"
           data:
             title: "{{ notification_title }}"
-            message: "{{ message }}"
+            message: >-
+              {% set weather = weather_entity %}
+
+              {# --- TODAY --- #}
+
+              {% if 'condition' in include_details %}
+              🌤️ <b>Condition:</b> {{ today.condition|capitalize }}
+              {% endif %}
+
+              {% if 'temperature' in include_details %}
+              🌡️ <b>Temp:</b> {{ today.temperature }}° / {{ today.templow }}°
+              {% endif %}
+
+              {% if 'humidity' in include_details and today.humidity is defined %}
+              💧 <b>Humidity:</b> {{ today.humidity }}%
+              {% endif %}
+
+              {% if 'wind' in include_details %}
+              💨 <b>Wind:</b> {{ today.wind_speed }} {{ state_attr(weather,'wind_speed_unit') }} ({{ today.wind_bearing }}°)
+              {% endif %}
+
+              {% if 'uv' in include_details and today.uv_index is defined %}
+              🔆 <b>UV Index:</b> {{ today.uv_index }}
+              {% endif %}
+
+              {% if 'precipitation' in include_details %}
+              🌧️ <b>Rain:</b> {{ today.precipitation }} {{ state_attr(weather,'precipitation_unit') }}
+              {% endif %}
+
+              {# --- TOMORROW --- #}
+
+              {% if include_tomorrow == 'yes' and tomorrow %}
+              📅 <b>Tomorrow:</b> {{ tomorrow.condition|capitalize }},
+              {{ tomorrow.temperature }}° / {{ tomorrow.templow }}°,
+              {{ tomorrow.precipitation }} {{ state_attr(weather,'precipitation_unit') }}
+              {% endif %}
+
             data:
               notification_icon: "{{ icon }}"
